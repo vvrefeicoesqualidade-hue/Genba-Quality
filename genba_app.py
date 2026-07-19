@@ -201,6 +201,37 @@ def remover_fiscal(nome):
     except:
         return False
 
+def apagar_conferencia(conf_id):
+    try:
+        sh = get_client().open(SHEET_NAME)
+        ws_conf = sh.worksheet("Conferências")
+        ws_resp = sh.worksheet("Respostas")
+        cell = ws_conf.find(conf_id)
+        if cell:
+            ws_conf.delete_rows(cell.row)
+        resp_cells = ws_resp.findall(conf_id)
+        for c in sorted(resp_cells, key=lambda x: x.row, reverse=True):
+            ws_resp.delete_rows(c.row)
+        carregar_historico.clear()
+        return True
+    except Exception as e:
+        return False, str(e)
+
+def apagar_todo_historico():
+    try:
+        sh = get_client().open(SHEET_NAME)
+        ws_conf = sh.worksheet("Conferências")
+        ws_resp = sh.worksheet("Respostas")
+        n_conf = ws_conf.row_count
+        if ws_conf.row_count > 1:
+            ws_conf.delete_rows(2, ws_conf.row_count)
+        if ws_resp.row_count > 1:
+            ws_resp.delete_rows(2, ws_resp.row_count)
+        carregar_historico.clear()
+        return True
+    except Exception as e:
+        return False, str(e)
+
 # ── Dados fixos ───────────────────────────────────────────────
 ITENS = {
     "Turno 1": {
@@ -229,7 +260,7 @@ def get_itens(turno, local):
 
 # ── Session state ─────────────────────────────────────────────
 for k, v in [("tela","splash"),("respostas",{}),("conf",{}),("fiscal","Fiscal"),
-             ("historico_loaded",False),("admin_ok",False)]:
+             ("historico_loaded",False),("admin_ok",False),("confirm_wipe_all",False)]:
     if k not in st.session_state: st.session_state[k] = v
 
 # SPLASH
@@ -374,6 +405,36 @@ if st.session_state.tela == "inicio":
                     '</div>'
                 )
                 st.markdown(hist_html, unsafe_allow_html=True)
+                h_id = h.get("id", f"{h['local']}_{h['turno']}_{h['data']}")
+                confirm_key = f"confirm_del_{h_id}"
+                if st.session_state.get(confirm_key):
+                    cc1, cc2 = st.columns(2)
+                    with cc1:
+                        st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
+                        if st.button("✕ Confirmar exclusão", key=f"conf_del_{h_id}", use_container_width=True):
+                            with st.spinner("Apagando..."):
+                                ok = apagar_conferencia(h_id)
+                            if ok is True or (isinstance(ok, tuple) and ok[0]):
+                                st.session_state.historico = [x for x in st.session_state.historico if x.get("id", f"{x['local']}_{x['turno']}_{x['data']}") != h_id]
+                                st.session_state[confirm_key] = False
+                                st.success("Conferência apagada.")
+                                st.rerun()
+                            else:
+                                st.error("Erro ao apagar. Verifique a conexão com o Sheets.")
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    with cc2:
+                        st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
+                        if st.button("Cancelar", key=f"cancel_del_{h_id}", use_container_width=True):
+                            st.session_state[confirm_key] = False
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown('<div style="margin:0 0 12px"><div class="btn-clear">', unsafe_allow_html=True)
+                    if st.button("🗑 Apagar esta conferência", key=f"del_hist_{h_id}", use_container_width=True):
+                        st.session_state[confirm_key] = True
+                        st.rerun()
+                    st.markdown("</div></div>", unsafe_allow_html=True)
+
 
     # ── TAB 3: NCS ────────────────────────────────────────────
     with tab3:
@@ -578,6 +639,38 @@ if st.session_state.tela == "inicio":
                 else:
                     st.warning("Digite o nome do fiscal.")
             st.markdown("</div></div>", unsafe_allow_html=True)
+
+            st.markdown('<div class="div"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-lbl">⚠️ Zona de risco</div>', unsafe_allow_html=True)
+            st.markdown('<div class="admin-locked" style="background:#FFF0F0;border-color:#E24B4A;"><div class="admin-title" style="color:#501313;">🗑 Apagar todo o histórico</div><div class="admin-sub" style="color:#501313;">Remove permanentemente todas as conferências salvas no Google Sheets (Conferências e Respostas). Use isso para zerar o app antes de começar a usar de verdade.</div></div>', unsafe_allow_html=True)
+            if st.session_state.get("confirm_wipe_all"):
+                st.warning("Tem certeza? Essa ação não pode ser desfeita e vai apagar TODO o histórico salvo.")
+                wc1, wc2 = st.columns(2)
+                with wc1:
+                    st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
+                    if st.button("✕ Sim, apagar tudo", key="btn_wipe_confirm", use_container_width=True):
+                        with st.spinner("Apagando todo o histórico..."):
+                            ok = apagar_todo_historico()
+                        if ok is True or (isinstance(ok, tuple) and ok[0]):
+                            st.session_state.historico = []
+                            st.session_state.confirm_wipe_all = False
+                            st.success("Histórico apagado com sucesso.")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao apagar. Verifique a conexão com o Sheets.")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                with wc2:
+                    st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
+                    if st.button("Cancelar", key="btn_wipe_cancel", use_container_width=True):
+                        st.session_state.confirm_wipe_all = False
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="margin:8px 16px 24px"><div class="btn-danger">', unsafe_allow_html=True)
+                if st.button("🗑 Apagar todo o histórico", key="btn_wipe_all", use_container_width=True):
+                    st.session_state.confirm_wipe_all = True
+                    st.rerun()
+                st.markdown("</div></div>", unsafe_allow_html=True)
 
             st.markdown('<div class="div"></div>', unsafe_allow_html=True)
             st.markdown('<div style="margin:0 16px 24px"><div class="btn-back">', unsafe_allow_html=True)
