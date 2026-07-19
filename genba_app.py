@@ -42,6 +42,15 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stTextInput"] input {
     color: #0F2D1A !important;
     -webkit-text-fill-color: #0F2D1A !important;
+    opacity: 1 !important;
+    font-weight: 500 !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+    opacity: 1 !important;
+}
+[data-testid="stSelectbox"] svg {
+    fill: #0F2D1A !important;
+    opacity: 1 !important;
 }
 ul[data-baseweb="menu"], ul[role="listbox"] {
     background: #fff !important;
@@ -49,6 +58,7 @@ ul[data-baseweb="menu"], ul[role="listbox"] {
 ul[data-baseweb="menu"] li, ul[role="listbox"] li {
     color: #0F2D1A !important;
     -webkit-text-fill-color: #0F2D1A !important;
+    opacity: 1 !important;
 }
 .stButton > button {
     border-radius: 12px !important; font-family: 'Inter', sans-serif !important;
