@@ -79,6 +79,14 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 .nc-meta { font-size: 11px; color: #9C0006; margin-top: 2px; }
 .rel-card { background: #fff; border-radius: 14px; border: 0.5px solid #D6EDD9; margin: 0 16px 8px; padding: 16px; }
 .rel-card-title { font-size: 13px; font-weight: 600; color: #0F2D1A; margin-bottom: 12px; }
+.rank-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 0.5px solid #EEF4EF; }
+.rank-row:last-child { border-bottom: none; }
+.rank-left { display: flex; align-items: center; gap: 10px; }
+.rank-pos { width: 22px; height: 22px; border-radius: 50%; background: #F0F4F1; color: #6B8F72; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rank-pos.top { background: #FFF0F0; color: #9C0006; }
+.rank-local { font-size: 13px; color: #0F2D1A; font-weight: 500; }
+.rank-nc { font-size: 13px; font-weight: 700; color: #9C0006; }
+.rank-nc.zero { color: #1D6B35; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .bar-label { font-size: 12px; color: #0F2D1A; font-weight: 500; width: 60px; flex-shrink: 0; }
 .bar-bg { flex: 1; height: 20px; background: #F0F4F1; border-radius: 99px; overflow: hidden; }
@@ -404,15 +412,34 @@ if st.session_state.tela == "inicio":
                 if df_f.empty:
                     st.markdown('<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum dado para esse filtro</div></div>', unsafe_allow_html=True)
                 else:
-                    tc=len(df_f); mp=int(df_f["pct"].mean()); tnc=int(df_f["total_nc"].sum())
+                    tc=len(df_f); tc_sum=int(df_f["total_c"].sum()); tnc=int(df_f["total_nc"].sum())
+                    avaliados_sum=tc_sum+tnc; mp=int((tc_sum/avaliados_sum)*100) if avaliados_sum else 0
                     st.markdown(f'<div class="chips-row"><div class="sum-chip"><div class="sum-chip-val">{tc}</div><div class="sum-chip-lbl">Conferências</div></div><div class="sum-chip"><div class="sum-chip-val" style="color:#1D6B35">{mp}%</div><div class="sum-chip-lbl">Conformidade</div></div><div class="sum-chip"><div class="sum-chip-val" style="color:#9C0006">{tnc}</div><div class="sum-chip-lbl">NCs</div></div></div>', unsafe_allow_html=True)
-                    por_local = df_f.groupby("local")["pct"].mean().sort_values(ascending=False)
+                    por_local_grp = df_f.groupby("local").agg(c=("total_c","sum"), nc=("total_nc","sum"))
+                    por_local = ((por_local_grp["c"]/(por_local_grp["c"]+por_local_grp["nc"]).replace(0,pd.NA))*100).fillna(0).sort_values(ascending=False)
                     st.markdown('<div class="rel-card"><div class="rel-card-title">Conformidade por Unidade</div>', unsafe_allow_html=True)
                     bars=""
                     for l,p in por_local.items():
                         pv=int(p); cor="bar-fill-g" if pv>=80 else "bar-fill-r"
                         bars+=f'<div class="bar-row"><div class="bar-label">{l}</div><div class="bar-bg"><div class="{cor}" style="width:{pv}%"></div></div><div class="bar-pct">{pv}%</div></div>'
                     st.markdown(bars+"</div>", unsafe_allow_html=True)
+                    rank_local = por_local_grp["nc"].astype(int).sort_values(ascending=False)
+                    st.markdown('<div class="rel-card"><div class="rel-card-title">Ranking de Unidades por NCs</div>', unsafe_allow_html=True)
+                    rk=""
+                    for idx,(l,ncv) in enumerate(rank_local.items(),1):
+                        pos_cls="rank-pos top" if idx==1 and ncv>0 else "rank-pos"
+                        nc_cls="rank-nc" if ncv>0 else "rank-nc zero"
+                        rk+=f'<div class="rank-row"><div class="rank-left"><span class="{pos_cls}">{idx}</span><span class="rank-local">{l}</span></div><span class="{nc_cls}">{ncv} NC</span></div>'
+                    st.markdown(rk+"</div>", unsafe_allow_html=True)
+                    por_turno_grp = df_f.groupby("turno").agg(c=("total_c","sum"), nc=("total_nc","sum"))
+                    rank_turno = por_turno_grp["nc"].astype(int).sort_values(ascending=False)
+                    st.markdown('<div class="rel-card"><div class="rel-card-title">Ranking de Turnos por NCs</div>', unsafe_allow_html=True)
+                    rkt=""
+                    for idx,(t,ncv) in enumerate(rank_turno.items(),1):
+                        pos_cls="rank-pos top" if idx==1 and ncv>0 else "rank-pos"
+                        nc_cls="rank-nc" if ncv>0 else "rank-nc zero"
+                        rkt+=f'<div class="rank-row"><div class="rank-left"><span class="{pos_cls}">{idx}</span><span class="rank-local">{t}</span></div><span class="{nc_cls}">{ncv} NC</span></div>'
+                    st.markdown(rkt+"</div>", unsafe_allow_html=True)
                     nc_items={}
                     conf_f=set((str(r["data"].date()),r["local"],r["turno"]) for _,r in df_f.iterrows())
                     for h in hist:
@@ -435,14 +462,16 @@ if st.session_state.tela == "inicio":
         if not hist:
             st.markdown('<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Sem dados para o relatório anual</div></div>', unsafe_allow_html=True)
         else:
-            df_a = pd.DataFrame([{"local":h["local"],"data":pd.to_datetime(h["data"]),"total_c":h["total_c"],"total_nc":h["total_nc"],"pct":h["pct"]} for h in hist])
+            df_a = pd.DataFrame([{"local":h["local"],"turno":h["turno"],"data":pd.to_datetime(h["data"]),"total_c":h["total_c"],"total_nc":h["total_nc"],"pct":h["pct"]} for h in hist])
             anos = sorted(df_a["data"].dt.year.unique().tolist(), reverse=True)
             ano_sel = st.selectbox("Ano", anos, key="ano_sel")
             df_ano = df_a[df_a["data"].dt.year==ano_sel]
-            tc=len(df_ano); mp=int(df_ano["pct"].mean()); tnc=int(df_ano["total_nc"].sum())
+            tc=len(df_ano); tc_sum=int(df_ano["total_c"].sum()); tnc=int(df_ano["total_nc"].sum())
+            avaliados_sum=tc_sum+tnc; mp=int((tc_sum/avaliados_sum)*100) if avaliados_sum else 0
             st.markdown(f'<div class="chips-row"><div class="sum-chip"><div class="sum-chip-val">{tc}</div><div class="sum-chip-lbl">Conferências</div></div><div class="sum-chip"><div class="sum-chip-val" style="color:#1D6B35">{mp}%</div><div class="sum-chip-lbl">Conformidade</div></div><div class="sum-chip"><div class="sum-chip-val" style="color:#9C0006">{tnc}</div><div class="sum-chip-lbl">NCs</div></div></div>', unsafe_allow_html=True)
             meses=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-            por_mes=df_ano.groupby(df_ano["data"].dt.month)["pct"].mean()
+            por_mes_grp = df_ano.groupby(df_ano["data"].dt.month).agg(c=("total_c","sum"), nc=("total_nc","sum"))
+            por_mes = ((por_mes_grp["c"]/(por_mes_grp["c"]+por_mes_grp["nc"]).replace(0,pd.NA))*100).fillna(0)
             st.markdown('<div class="rel-card"><div class="rel-card-title">Conformidade por mês</div>', unsafe_allow_html=True)
             bm=""
             for m in range(1,13):
@@ -450,13 +479,31 @@ if st.session_state.tela == "inicio":
                     pv=int(por_mes[m]); cor="bar-fill-g" if pv>=80 else "bar-fill-r"
                     bm+=f'<div class="bar-row"><div class="bar-label" style="width:28px;font-size:10px;">{meses[m-1]}</div><div class="bar-bg"><div class="{cor}" style="width:{pv}%"></div></div><div class="bar-pct">{pv}%</div></div>'
             st.markdown(bm+"</div>", unsafe_allow_html=True)
-            por_local=df_ano.groupby("local")["pct"].mean().sort_values(ascending=False)
+            por_local_grp = df_ano.groupby("local").agg(c=("total_c","sum"), nc=("total_nc","sum"))
+            por_local = ((por_local_grp["c"]/(por_local_grp["c"]+por_local_grp["nc"]).replace(0,pd.NA))*100).fillna(0).sort_values(ascending=False)
             st.markdown('<div class="rel-card"><div class="rel-card-title">Conformidade por unidade</div>', unsafe_allow_html=True)
             bl=""
             for l,pv in por_local.items():
                 pv=int(pv); cor="bar-fill-g" if pv>=80 else "bar-fill-r"
                 bl+=f'<div class="bar-row"><div class="bar-label">{l}</div><div class="bar-bg"><div class="{cor}" style="width:{pv}%"></div></div><div class="bar-pct">{pv}%</div></div>'
             st.markdown(bl+"</div>", unsafe_allow_html=True)
+            rank_local_ano = por_local_grp["nc"].astype(int).sort_values(ascending=False)
+            st.markdown('<div class="rel-card"><div class="rel-card-title">Ranking de Unidades por NCs</div>', unsafe_allow_html=True)
+            rka=""
+            for idx,(l,ncv) in enumerate(rank_local_ano.items(),1):
+                pos_cls="rank-pos top" if idx==1 and ncv>0 else "rank-pos"
+                nc_cls="rank-nc" if ncv>0 else "rank-nc zero"
+                rka+=f'<div class="rank-row"><div class="rank-left"><span class="{pos_cls}">{idx}</span><span class="rank-local">{l}</span></div><span class="{nc_cls}">{ncv} NC</span></div>'
+            st.markdown(rka+"</div>", unsafe_allow_html=True)
+            por_turno_grp_ano = df_ano.groupby("turno").agg(c=("total_c","sum"), nc=("total_nc","sum"))
+            rank_turno_ano = por_turno_grp_ano["nc"].astype(int).sort_values(ascending=False)
+            st.markdown('<div class="rel-card"><div class="rel-card-title">Ranking de Turnos por NCs</div>', unsafe_allow_html=True)
+            rkta=""
+            for idx,(t,ncv) in enumerate(rank_turno_ano.items(),1):
+                pos_cls="rank-pos top" if idx==1 and ncv>0 else "rank-pos"
+                nc_cls="rank-nc" if ncv>0 else "rank-nc zero"
+                rkta+=f'<div class="rank-row"><div class="rank-left"><span class="{pos_cls}">{idx}</span><span class="rank-local">{t}</span></div><span class="{nc_cls}">{ncv} NC</span></div>'
+            st.markdown(rkta+"</div>", unsafe_allow_html=True)
             nc_ano={}
             for h in hist:
                 if pd.to_datetime(h["data"]).year==ano_sel:
@@ -474,7 +521,9 @@ if st.session_state.tela == "inicio":
             nc_rows="".join([f'<div style="background:#FFF0F0;border:1px solid #E24B4A;border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;"><span>{it}</span><strong>{c}x</strong></div>' for it,c in sorted(nc_ano.items(),key=lambda x:x[1],reverse=True)[:5]])
             local_rows="".join([f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:100px;font-size:13px;">{l}</div><div style="flex:1;height:16px;background:#F0F4F1;border-radius:99px;overflow:hidden;"><div style="height:100%;background:{"#1D9E75" if int(p)>=80 else "#E24B4A"};width:{int(p)}%;border-radius:99px;"></div></div><div style="width:40px;text-align:right;font-size:13px;font-weight:700;">{int(p)}%</div></div>' for l,p in por_local.items()])
             mes_rows="".join([f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:100px;font-size:13px;">{meses[m-1]}</div><div style="flex:1;height:16px;background:#F0F4F1;border-radius:99px;overflow:hidden;"><div style="height:100%;background:{"#1D9E75" if int(por_mes[m])>=80 else "#E24B4A"};width:{int(por_mes[m])}%;border-radius:99px;"></div></div><div style="width:40px;text-align:right;font-size:13px;font-weight:700;">{int(por_mes[m])}%</div></div>' for m in range(1,13) if m in por_mes.index])
-            html_rel=f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#0F2D1A;}}h1{{color:#0F2D1A;border-bottom:3px solid #7DC65A;padding-bottom:10px;}}h2{{color:#1D6B35;margin-top:30px;}}.cr{{display:flex;gap:20px;margin:20px 0;}}.ch{{flex:1;background:#EAF5ED;border-radius:10px;padding:16px;text-align:center;}}.cv{{font-size:32px;font-weight:700;}}.cl{{font-size:12px;color:#6B8F72;text-transform:uppercase;}}.footer{{margin-top:40px;padding-top:20px;border-top:1px solid #D6EDD9;font-size:12px;color:#6B8F72;}}</style></head><body><h1>Genba Quality Analytics — Relatório Anual {ano_sel}</h1><p>Gerado em {datetime.today().strftime('%d/%m/%Y')}</p><div class="cr"><div class="ch"><div class="cv">{tc}</div><div class="cl">Conferências</div></div><div class="ch"><div class="cv">{mp}%</div><div class="cl">Conformidade</div></div><div class="ch" style="background:#FFF0F0"><div class="cv" style="color:#9C0006">{tnc}</div><div class="cl">NCs</div></div></div><h2>Por Unidade</h2>{local_rows}<h2>Por Mês</h2>{mes_rows}<h2>Top NCs</h2>{nc_rows}<div class="footer">Genba Quality Analytics | Qualidade baseada em dados.</div></body></html>"""
+            rank_rows="".join([f'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #EEF4EF;"><span>{idx}. {l}</span><strong style="color:{"#9C0006" if ncv>0 else "#1D6B35"}">{ncv} NC</strong></div>' for idx,(l,ncv) in enumerate(rank_local_ano.items(),1)])
+            rank_turno_rows="".join([f'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #EEF4EF;"><span>{idx}. {t}</span><strong style="color:{"#9C0006" if ncv>0 else "#1D6B35"}">{ncv} NC</strong></div>' for idx,(t,ncv) in enumerate(rank_turno_ano.items(),1)])
+            html_rel=f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#0F2D1A;}}h1{{color:#0F2D1A;border-bottom:3px solid #7DC65A;padding-bottom:10px;}}h2{{color:#1D6B35;margin-top:30px;}}.cr{{display:flex;gap:20px;margin:20px 0;}}.ch{{flex:1;background:#EAF5ED;border-radius:10px;padding:16px;text-align:center;}}.cv{{font-size:32px;font-weight:700;}}.cl{{font-size:12px;color:#6B8F72;text-transform:uppercase;}}.footer{{margin-top:40px;padding-top:20px;border-top:1px solid #D6EDD9;font-size:12px;color:#6B8F72;}}</style></head><body><h1>Genba Quality Analytics — Relatório Anual {ano_sel}</h1><p>Gerado em {datetime.today().strftime('%d/%m/%Y')}</p><div class="cr"><div class="ch"><div class="cv">{tc}</div><div class="cl">Conferências</div></div><div class="ch"><div class="cv">{mp}%</div><div class="cl">Conformidade</div></div><div class="ch" style="background:#FFF0F0"><div class="cv" style="color:#9C0006">{tnc}</div><div class="cl">NCs</div></div></div><h2>Por Unidade</h2>{local_rows}<h2>Por Mês</h2>{mes_rows}<h2>Ranking de Unidades por NCs</h2>{rank_rows}<h2>Ranking de Turnos por NCs</h2>{rank_turno_rows}<h2>Top NCs</h2>{nc_rows}<div class="footer">Genba Quality Analytics | Qualidade baseada em dados.</div></body></html>"""
             b64=base64.b64encode(html_rel.encode()).decode()
             st.markdown(f'<a href="data:text/html;base64,{b64}" download="Relatorio_Anual_{ano_sel}.html" style="display:block;background:#0F2D1A;color:#7DC65A;border-radius:12px;padding:13px;text-align:center;font-size:13px;font-weight:700;text-decoration:none;margin:12px 16px;">⬇ Baixar relatório {ano_sel}</a>', unsafe_allow_html=True)
             st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
