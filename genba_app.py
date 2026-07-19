@@ -15,6 +15,7 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: light !important; }
 html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     background: #F5FAF6 !important; font-family: 'Inter', sans-serif !important;
     max-width: 480px !important; margin: 0 auto !important;
@@ -34,6 +35,20 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 }
 [data-testid="stSelectbox"] > div > div,[data-testid="stDateInput"] > div > div {
     border-radius: 10px !important; border-color: #D6EDD9 !important; background: #F5FAF6 !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"] *,
+[data-testid="stSelectbox"] div[data-baseweb="select"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stTextInput"] input {
+    color: #0F2D1A !important;
+    -webkit-text-fill-color: #0F2D1A !important;
+}
+ul[data-baseweb="menu"], ul[role="listbox"] {
+    background: #fff !important;
+}
+ul[data-baseweb="menu"] li, ul[role="listbox"] li {
+    color: #0F2D1A !important;
+    -webkit-text-fill-color: #0F2D1A !important;
 }
 .stButton > button {
     border-radius: 12px !important; font-family: 'Inter', sans-serif !important;
