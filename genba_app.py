@@ -228,8 +228,13 @@ for k, v in [("tela","splash"),("respostas",{}),("conf",{}),("fiscal","Fiscal"),
 if st.session_state.tela == "splash":
     st.markdown("""
 <style>
-[data-testid="stAppViewContainer"] {
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"],
+.main, .block-container {
     background: #0F2D1A !important;
+}
+[data-testid="stAppViewContainer"] {
     background-image:
         radial-gradient(circle at 12% 18%, rgba(125,198,90,0.10) 0%, rgba(125,198,90,0) 42%),
         radial-gradient(circle at 88% 86%, rgba(125,198,90,0.08) 0%, rgba(125,198,90,0) 40%) !important;
