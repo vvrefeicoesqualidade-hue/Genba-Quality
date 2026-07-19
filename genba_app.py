@@ -181,6 +181,26 @@ footer { display: none !important; }
     text-decoration: none; letter-spacing: -0.2px;
 }
 
+
+/* RELATÓRIO */
+.rel-filter { margin: 12px 16px 0; }
+.rel-card {
+    background: #fff; border-radius: 14px;
+    border: 0.5px solid #D6EDD9; margin: 10px 16px;
+    padding: 16px;
+}
+.rel-card-title { font-size: 13px; font-weight: 600; color: #0F2D1A; margin-bottom: 12px; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bar-label { font-size: 12px; color: #0F2D1A; font-weight: 500; width: 60px; flex-shrink: 0; }
+.bar-bg { flex: 1; height: 20px; background: #F0F4F1; border-radius: 99px; overflow: hidden; }
+.bar-fill-g { height: 100%; background: #1D9E75; border-radius: 99px; }
+.bar-fill-r { height: 100%; background: #E24B4A; border-radius: 99px; }
+.bar-pct { font-size: 12px; font-weight: 600; color: #0F2D1A; width: 38px; text-align: right; flex-shrink: 0; }
+.summary-chip-row { display: flex; gap: 8px; margin: 10px 16px; }
+.sum-chip { flex: 1; background: #fff; border: 0.5px solid #D6EDD9; border-radius: 12px; padding: 12px 10px; text-align: center; }
+.sum-chip-val { font-size: 20px; font-weight: 700; color: #0F2D1A; }
+.sum-chip-lbl { font-size: 10px; color: #6B8F72; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+
 /* DIVIDER */
 .div { height: 0.5px; background: #D6EDD9; margin: 12px 16px; }
 
@@ -299,7 +319,7 @@ st.markdown(f"""
 if st.session_state.tela == "inicio":
 
     # Tabs mobile
-    tab1, tab2, tab3 = st.tabs(["📋 Conferência", "📊 Histórico", "⚡ NCs"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Conferência", "📊 Histórico", "⚡ NCs", "📈 Relatório"])
 
     with tab1:
         st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -373,6 +393,154 @@ if st.session_state.tela == "inicio":
                     </div>
                     <span class="badge badge-nc">NC</span>
                 </div>""", unsafe_allow_html=True)
+
+    with tab4:
+        hist = st.session_state.historico
+        if not hist:
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-icon">📈</div>
+                <div class="empty-title">Sem dados ainda</div>
+                <div class="empty-sub">Finalize conferências para ver os relatórios</div>
+            </div>""", unsafe_allow_html=True)
+        else:
+            import pandas as pd
+            from datetime import datetime, timedelta
+
+            df = pd.DataFrame([{
+                "local": h["local"],
+                "turno": h["turno"],
+                "fiscal": h["fiscal"],
+                "data": pd.to_datetime(h["data"]),
+                "total_c": h["total_c"],
+                "total_nc": h["total_nc"],
+                "pct": h["pct"],
+                "total": h["total_c"] + h["total_nc"]
+            } for h in hist])
+
+            st.markdown('<div class="section-lbl">Filtros</div>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                locais_disp = ["Todos"] + sorted(df["local"].unique().tolist())
+                filtro_local = st.selectbox("Unidade", locais_disp, key="rel_local")
+            with col2:
+                turnos_disp = ["Todos"] + sorted(df["turno"].unique().tolist())
+                filtro_turno = st.selectbox("Turno", turnos_disp, key="rel_turno")
+
+            periodo = st.selectbox("Período", ["Todos", "Última semana", "Último mês", "Últimos 3 meses"], key="rel_periodo")
+
+            # Aplicar filtros
+            df_f = df.copy()
+            if filtro_local != "Todos":
+                df_f = df_f[df_f["local"] == filtro_local]
+            if filtro_turno != "Todos":
+                df_f = df_f[df_f["turno"] == filtro_turno]
+            hoje = pd.Timestamp.today()
+            if periodo == "Última semana":
+                df_f = df_f[df_f["data"] >= hoje - timedelta(days=7)]
+            elif periodo == "Último mês":
+                df_f = df_f[df_f["data"] >= hoje - timedelta(days=30)]
+            elif periodo == "Últimos 3 meses":
+                df_f = df_f[df_f["data"] >= hoje - timedelta(days=90)]
+
+            if df_f.empty:
+                st.markdown("""
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <div class="empty-title">Nenhum dado para esse filtro</div>
+                </div>""", unsafe_allow_html=True)
+            else:
+                # Resumo geral
+                total_conf = len(df_f)
+                media_pct = int(df_f["pct"].mean())
+                total_nc_geral = int(df_f["total_nc"].sum())
+                total_c_geral = int(df_f["total_c"].sum())
+
+                st.markdown(f"""
+                <div class="summary-chip-row">
+                    <div class="sum-chip">
+                        <div class="sum-chip-val">{total_conf}</div>
+                        <div class="sum-chip-lbl">Conferências</div>
+                    </div>
+                    <div class="sum-chip">
+                        <div class="sum-chip-val" style="color:#1D6B35">{media_pct}%</div>
+                        <div class="sum-chip-lbl">Conformidade</div>
+                    </div>
+                    <div class="sum-chip">
+                        <div class="sum-chip-val" style="color:#9C0006">{total_nc_geral}</div>
+                        <div class="sum-chip-lbl">NCs</div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+                # Gráfico por unidade
+                st.markdown("""<div class="rel-card">
+                    <div class="rel-card-title">📊 Conformidade por Unidade</div>""", unsafe_allow_html=True)
+                
+                por_local = df_f.groupby("local").agg(pct_media=("pct","mean")).reset_index()
+                por_local = por_local.sort_values("pct_media", ascending=False)
+                
+                bars_html = ""
+                for _, row in por_local.iterrows():
+                    pct_val = int(row["pct_media"])
+                    cor = "bar-fill-g" if pct_val >= 80 else "bar-fill-r"
+                    bars_html += f"""
+                    <div class="bar-row">
+                        <div class="bar-label">{row['local']}</div>
+                        <div class="bar-bg"><div class="{cor}" style="width:{pct_val}%"></div></div>
+                        <div class="bar-pct">{pct_val}%</div>
+                    </div>"""
+                
+                st.markdown(bars_html + "</div>", unsafe_allow_html=True)
+
+                # Gráfico por turno
+                st.markdown("""<div class="rel-card">
+                    <div class="rel-card-title">🕐 Conformidade por Turno</div>""", unsafe_allow_html=True)
+                
+                por_turno = df_f.groupby("turno").agg(pct_media=("pct","mean")).reset_index()
+                por_turno = por_turno.sort_values("pct_media", ascending=False)
+                
+                bars_html2 = ""
+                for _, row in por_turno.iterrows():
+                    pct_val = int(row["pct_media"])
+                    cor = "bar-fill-g" if pct_val >= 80 else "bar-fill-r"
+                    turno_label = row["turno"].replace("Turno ","T")
+                    bars_html2 += f"""
+                    <div class="bar-row">
+                        <div class="bar-label">{turno_label}</div>
+                        <div class="bar-bg"><div class="{cor}" style="width:{pct_val}%"></div></div>
+                        <div class="bar-pct">{pct_val}%</div>
+                    </div>"""
+                
+                st.markdown(bars_html2 + "</div>", unsafe_allow_html=True)
+
+                # Top NCs
+                nc_items = {}
+                for h in hist:
+                    row_df = df_f[df_f["data"] == pd.to_datetime(h["data"])]
+                    if not row_df.empty:
+                        for it, v in h["respostas"].items():
+                            if v == "NC":
+                                nc_items[it] = nc_items.get(it, 0) + 1
+                
+                if nc_items:
+                    top_nc = sorted(nc_items.items(), key=lambda x: x[1], reverse=True)[:5]
+                    st.markdown("""<div class="rel-card">
+                        <div class="rel-card-title">❌ Itens mais não conformes</div>""", unsafe_allow_html=True)
+                    
+                    max_val = max(v for _, v in top_nc)
+                    nc_html = ""
+                    for item, count in top_nc:
+                        pct_bar = int((count / max_val) * 100)
+                        nc_html += f"""
+                        <div class="bar-row">
+                            <div class="bar-label" style="width:100px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{item}">{item[:18]}...</div>
+                            <div class="bar-bg"><div class="bar-fill-r" style="width:{pct_bar}%"></div></div>
+                            <div class="bar-pct">{count}x</div>
+                        </div>"""
+                    st.markdown(nc_html + "</div>", unsafe_allow_html=True)
+
+            st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
 # TELA: CONFERÊNCIA
