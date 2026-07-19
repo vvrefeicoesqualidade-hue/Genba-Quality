@@ -220,9 +220,33 @@ def get_itens(turno, local):
     return list(g.get("Todos",[])) + (g.get(local,[]) if local in g else [])
 
 # ── Session state ─────────────────────────────────────────────
-for k, v in [("tela","inicio"),("respostas",{}),("conf",{}),("fiscal","Fiscal"),
+for k, v in [("tela","splash"),("respostas",{}),("conf",{}),("fiscal","Fiscal"),
              ("historico_loaded",False),("admin_ok",False)]:
     if k not in st.session_state: st.session_state[k] = v
+
+# SPLASH
+if st.session_state.tela == "splash":
+    st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background: #0F2D1A !important; }
+.splash-wrap { text-align: center; padding: 60px 24px; }
+.splash-icon { font-size: 64px; margin-bottom: 20px; }
+.splash-title { font-size: 26px; font-weight: 700; color: #EAFBF0; margin-bottom: 6px; }
+.splash-title span { color: #7DC65A; }
+.splash-slogan { font-size: 14px; color: #5DAF78; margin-bottom: 40px; }
+.splash-brand { font-size: 11px; color: #3a7a4a; margin-top: 20px; }
+.stButton > button { background: #7DC65A !important; color: #0F2D1A !important; font-weight: 700 !important; border-radius: 12px !important; padding: 14px !important; font-size: 15px !important; }
+</style>
+<div class="splash-wrap">
+    <div class="splash-icon">🌿</div>
+    <div class="splash-title">Genba <span>Quality</span> Analytics</div>
+    <div class="splash-slogan">Qualidade baseada em dados.</div>
+</div>""", unsafe_allow_html=True)
+    if st.button("▶  Entrar", key="btn_entrar", use_container_width=True):
+        st.session_state.tela = "inicio"
+        st.rerun()
+    st.markdown('<div class="splash-brand" style="text-align:center">VV Refeições · v1.0</div>', unsafe_allow_html=True)
+    st.stop()
 
 if not st.session_state.historico_loaded:
     with st.spinner("Carregando dados..."):
