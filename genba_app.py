@@ -169,7 +169,7 @@ def salvar_conferencia(conf, respostas):
         total = total_c + total_nc
         pct = int((total_c/total)*100) if total else 0
         ws_conf.append_row([conf_id, conf["data"], conf["turno"], conf["local"],
-                            conf["fiscal"], "", "Finalizada", total, total_c, total_nc, f"{pct}%", ""])
+                            "", conf["fiscal"], "Finalizada", total, total_c, total_nc, f"{pct}%", ""])
         ws_resp.append_rows([[f"RS{conf_id}{i:03d}", conf_id, "", v, "", it, conf["turno"], conf["local"]]
                              for i, (it, v) in enumerate(respostas.items())])
         carregar_historico.clear()
@@ -207,13 +207,14 @@ def apagar_conferencia(conf_id):
         ws_conf = sh.worksheet("Conferências")
         ws_resp = sh.worksheet("Respostas")
         cell = ws_conf.find(conf_id)
-        if cell:
-            ws_conf.delete_rows(cell.row)
+        if not cell:
+            return False, f"ID_Conferencia '{conf_id}' não encontrado na aba Conferências."
+        ws_conf.delete_rows(cell.row)
         resp_cells = ws_resp.findall(conf_id)
         for c in sorted(resp_cells, key=lambda x: x.row, reverse=True):
             ws_resp.delete_rows(c.row)
         carregar_historico.clear()
-        return True
+        return True, ""
     except Exception as e:
         return False, str(e)
 
@@ -222,13 +223,12 @@ def apagar_todo_historico():
         sh = get_client().open(SHEET_NAME)
         ws_conf = sh.worksheet("Conferências")
         ws_resp = sh.worksheet("Respostas")
-        n_conf = ws_conf.row_count
         if ws_conf.row_count > 1:
             ws_conf.delete_rows(2, ws_conf.row_count)
         if ws_resp.row_count > 1:
             ws_resp.delete_rows(2, ws_resp.row_count)
         carregar_historico.clear()
-        return True
+        return True, ""
     except Exception as e:
         return False, str(e)
 
@@ -413,14 +413,14 @@ if st.session_state.tela == "inicio":
                         st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
                         if st.button("✕ Confirmar exclusão", key=f"conf_del_{h_id}", use_container_width=True):
                             with st.spinner("Apagando..."):
-                                ok = apagar_conferencia(h_id)
-                            if ok is True or (isinstance(ok, tuple) and ok[0]):
+                                ok, msg = apagar_conferencia(h_id)
+                            if ok:
                                 st.session_state.historico = [x for x in st.session_state.historico if x.get("id", f"{x['local']}_{x['turno']}_{x['data']}") != h_id]
                                 st.session_state[confirm_key] = False
                                 st.success("Conferência apagada.")
                                 st.rerun()
                             else:
-                                st.error("Erro ao apagar. Verifique a conexão com o Sheets.")
+                                st.error(f"Erro ao apagar: {msg}")
                         st.markdown("</div>", unsafe_allow_html=True)
                     with cc2:
                         st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
@@ -650,14 +650,14 @@ if st.session_state.tela == "inicio":
                     st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
                     if st.button("✕ Sim, apagar tudo", key="btn_wipe_confirm", use_container_width=True):
                         with st.spinner("Apagando todo o histórico..."):
-                            ok = apagar_todo_historico()
-                        if ok is True or (isinstance(ok, tuple) and ok[0]):
+                            ok, msg = apagar_todo_historico()
+                        if ok:
                             st.session_state.historico = []
                             st.session_state.confirm_wipe_all = False
                             st.success("Histórico apagado com sucesso.")
                             st.rerun()
                         else:
-                            st.error("Erro ao apagar. Verifique a conexão com o Sheets.")
+                            st.error(f"Erro ao apagar: {msg}")
                     st.markdown("</div>", unsafe_allow_html=True)
                 with wc2:
                     st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
