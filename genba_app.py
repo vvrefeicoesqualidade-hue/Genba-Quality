@@ -209,10 +209,11 @@ def apagar_conferencia(conf_id):
         cell = ws_conf.find(conf_id)
         if not cell:
             return False, f"ID_Conferencia '{conf_id}' não encontrado na aba Conferências."
-        ws_conf.delete_rows(cell.row)
+        ws_conf.batch_clear([f"A{cell.row}:Z{cell.row}"])
         resp_cells = ws_resp.findall(conf_id)
-        for c in sorted(resp_cells, key=lambda x: x.row, reverse=True):
-            ws_resp.delete_rows(c.row)
+        if resp_cells:
+            ranges = [f"A{c.row}:Z{c.row}" for c in resp_cells]
+            ws_resp.batch_clear(ranges)
         carregar_historico.clear()
         return True, ""
     except Exception as e:
@@ -224,9 +225,9 @@ def apagar_todo_historico():
         ws_conf = sh.worksheet("Conferências")
         ws_resp = sh.worksheet("Respostas")
         if ws_conf.row_count > 1:
-            ws_conf.delete_rows(2, ws_conf.row_count)
+            ws_conf.batch_clear([f"A2:Z{ws_conf.row_count}"])
         if ws_resp.row_count > 1:
-            ws_resp.delete_rows(2, ws_resp.row_count)
+            ws_resp.batch_clear([f"A2:Z{ws_resp.row_count}"])
         carregar_historico.clear()
         return True, ""
     except Exception as e:
