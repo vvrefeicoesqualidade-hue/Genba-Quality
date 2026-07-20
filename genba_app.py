@@ -52,12 +52,12 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     font-weight: 600 !important; font-size: 14px !important;
     padding: 12px 20px !important; width: 100% !important; border: none !important;
 }
-.btn-green > button { background: #0F2D1A !important; color: #EAFBF0 !important; }
-.btn-c > button { background: #1D9E75 !important; color: #fff !important; font-size: 13px !important; padding: 8px !important; }
-.btn-nc > button { background: #E24B4A !important; color: #fff !important; font-size: 13px !important; padding: 8px !important; }
-.btn-clear > button { background: #F0F4F1 !important; color: #6B8F72 !important; font-size: 12px !important; padding: 8px !important; }
-.btn-back > button { background: #F0F4F1 !important; color: #0F2D1A !important; }
-.btn-danger > button { background: #E24B4A !important; color: #fff !important; }
+[class*="st-key-kgreen"] button { background: #0F2D1A !important; color: #EAFBF0 !important; }
+[class*="st-key-kconf-"] button { background: #1D9E75 !important; color: #fff !important; font-size: 12px !important; padding: 8px 4px !important; }
+[class*="st-key-knc-"] button { background: #E24B4A !important; color: #fff !important; font-size: 12px !important; padding: 8px 4px !important; }
+[class*="st-key-kclear"] button { background: #F0F4F1 !important; color: #6B8F72 !important; font-size: 12px !important; padding: 8px !important; }
+[class*="st-key-kback"] button { background: #F0F4F1 !important; color: #0F2D1A !important; }
+[class*="st-key-kdanger"] button { background: #E24B4A !important; color: #fff !important; }
 .prog-wrap { margin: 8px 16px 0; }
 .prog-bg { height: 6px; background: #D6EDD9; border-radius: 99px; overflow: hidden; }
 .prog-fill { height: 100%; background: #7DC65A; border-radius: 99px; }
@@ -216,6 +216,38 @@ def remover_fiscal(nome):
     except:
         return False
 
+def apagar_conferencia(conf_id):
+    try:
+        sh = get_client().open(SHEET_NAME)
+        ws_conf = sh.worksheet("Conferências")
+        ws_resp = sh.worksheet("Respostas")
+        cell = ws_conf.find(conf_id)
+        if not cell:
+            return False, f"ID_Conferencia '{conf_id}' não encontrado na aba Conferências."
+        ws_conf.batch_clear([f"A{cell.row}:Z{cell.row}"])
+        resp_cells = ws_resp.findall(conf_id)
+        if resp_cells:
+            ranges = [f"A{c.row}:Z{c.row}" for c in resp_cells]
+            ws_resp.batch_clear(ranges)
+        carregar_historico.clear()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+def apagar_todo_historico():
+    try:
+        sh = get_client().open(SHEET_NAME)
+        ws_conf = sh.worksheet("Conferências")
+        ws_resp = sh.worksheet("Respostas")
+        if ws_conf.row_count > 1:
+            ws_conf.batch_clear([f"A2:Z{ws_conf.row_count}"])
+        if ws_resp.row_count > 1:
+            ws_resp.batch_clear([f"A2:Z{ws_resp.row_count}"])
+        carregar_historico.clear()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
 # ── Dados fixos ───────────────────────────────────────────────
 ITENS = {
     "Turno 1": {
@@ -244,7 +276,7 @@ def get_itens(turno, local):
 
 # ── Session state ─────────────────────────────────────────────
 for k, v in [("tela","splash"),("respostas",{}),("comentarios",{}),("conf",{}),("fiscal","Fiscal"),
-             ("historico_loaded",False),("admin_ok",False)]:
+             ("historico_loaded",False),("admin_ok",False),("confirm_wipe_all",False)]:
     if k not in st.session_state: st.session_state[k] = v
 
 # SPLASH
@@ -358,16 +390,15 @@ if st.session_state.tela == "inicio":
         fiscal = st.selectbox("Fiscal", FISCAIS if FISCAIS else ["—"], key="sel_fiscal")
         data_conf = st.date_input("Data", value=date.today(), key="sel_data")
         st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown('<div style="margin:0 16px 24px"><div class="btn-green">', unsafe_allow_html=True)
-        if st.button("▶  Iniciar conferência", key="btn_iniciar", use_container_width=True):
-            itens = get_itens(turno, local)
-            st.session_state.conf = {"local":local,"turno":turno,"fiscal":fiscal,"data":str(data_conf),"itens":itens}
-            st.session_state.fiscal = fiscal
-            st.session_state.respostas = {it: None for it in itens}
-            st.session_state.comentarios = {it: "" for it in itens}
-            st.session_state.tela = "conferencia"
-            st.rerun()
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(key="kgreen_iniciar"):
+            if st.button("▶  Iniciar conferência", key="btn_iniciar", use_container_width=True):
+                itens = get_itens(turno, local)
+                st.session_state.conf = {"local":local,"turno":turno,"fiscal":fiscal,"data":str(data_conf),"itens":itens}
+                st.session_state.fiscal = fiscal
+                st.session_state.respostas = {it: None for it in itens}
+                st.session_state.comentarios = {it: "" for it in itens}
+                st.session_state.tela = "conferencia"
+                st.rerun()
 
     # ── TAB 2: HISTÓRICO ──────────────────────────────────────
     with tab2:
@@ -396,6 +427,33 @@ if st.session_state.tela == "inicio":
                         <div style="font-size:18px;font-weight:700;color:#1D6B35;">{h['pct']}%</div>
                     </div>
                 </div>""", unsafe_allow_html=True)
+                h_id = h.get("id", f"{h['local']}_{h['turno']}_{h['data']}")
+                confirm_key = f"confirm_del_{h_id}"
+                if st.session_state.get(confirm_key):
+                    cc1, cc2 = st.columns(2)
+                    with cc1:
+                        with st.container(key=f"kdanger_confdel_{h_id}"):
+                            if st.button("✕ Confirmar exclusão", key=f"conf_del_{h_id}", use_container_width=True):
+                                with st.spinner("Apagando..."):
+                                    ok, msg = apagar_conferencia(h_id)
+                                if ok:
+                                    st.session_state.historico = [x for x in st.session_state.historico if x.get("id", f"{x['local']}_{x['turno']}_{x['data']}") != h_id]
+                                    st.session_state[confirm_key] = False
+                                    st.success("Conferência apagada.")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Erro ao apagar: {msg}")
+                    with cc2:
+                        with st.container(key=f"kclear_canceldel_{h_id}"):
+                            if st.button("Cancelar", key=f"cancel_del_{h_id}", use_container_width=True):
+                                st.session_state[confirm_key] = False
+                                st.rerun()
+                else:
+                    with st.container(key=f"kclear_del_{h_id}"):
+                        if st.button("🗑 Apagar esta conferência", key=f"del_hist_{h_id}", use_container_width=True):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
+                st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # ── TAB 3: NCS ────────────────────────────────────────────
     with tab3:
@@ -428,9 +486,8 @@ if st.session_state.tela == "inicio":
             with c1: filtro_local = st.selectbox("Unidade", ["Todos"]+sorted(df["local"].unique().tolist()), key="rel_local")
             with c2: filtro_turno = st.selectbox("Turno", ["Todos"]+sorted(df["turno"].unique().tolist()), key="rel_turno")
             periodo = st.selectbox("Período", ["Todos","Última semana","Último mês","Últimos 3 meses"], key="rel_periodo")
-            st.markdown('<div style="margin:0 0 16px"><div class="btn-green">', unsafe_allow_html=True)
-            filtrar = st.button("🔍  Gerar relatório", key="btn_filtrar", use_container_width=True)
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            with st.container(key="kgreen_filtrar"):
+                filtrar = st.button("🔍  Gerar relatório", key="btn_filtrar", use_container_width=True)
             if not filtrar and "rel_resultado" not in st.session_state:
                 st.markdown('<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Selecione os filtros e toque em Gerar relatório</div></div>', unsafe_allow_html=True)
             else:
@@ -527,15 +584,14 @@ if st.session_state.tela == "inicio":
         if not st.session_state.admin_ok:
             st.markdown('<div class="admin-locked"><div class="admin-title">🔒 Área restrita</div><div class="admin-sub">Digite a senha de administrador para acessar</div></div>', unsafe_allow_html=True)
             senha = st.text_input("Senha", type="password", key="senha_admin")
-            st.markdown('<div style="margin:0 16px 24px"><div class="btn-green">', unsafe_allow_html=True)
-            if st.button("Entrar", key="btn_admin", use_container_width=True):
-                senha_correta = st.secrets.get("admin_password", "genba2024")
-                if senha == senha_correta:
-                    st.session_state.admin_ok = True
-                    st.rerun()
-                else:
-                    st.error("Senha incorreta")
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            with st.container(key="kgreen_admin"):
+                if st.button("Entrar", key="btn_admin", use_container_width=True):
+                    senha_correta = st.secrets.get("admin_password", "genba2024")
+                    if senha == senha_correta:
+                        st.session_state.admin_ok = True
+                        st.rerun()
+                    else:
+                        st.error("Senha incorreta")
         else:
             st.markdown('<div class="section-lbl">Fiscais ativos</div>', unsafe_allow_html=True)
             fiscais = st.session_state.get("fiscais", [])
@@ -544,36 +600,62 @@ if st.session_state.tela == "inicio":
                 with col1:
                     st.markdown(f'<div class="fiscal-row"><div class="fiscal-name">👤 {f}</div></div>', unsafe_allow_html=True)
                 with col2:
-                    st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
-                    if st.button("✕", key=f"del_{f}", use_container_width=True):
-                        if remover_fiscal(f):
-                            st.session_state.fiscais = [x for x in fiscais if x != f]
-                            st.success(f"{f} removido!")
-                            st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    with st.container(key=f"kdanger_delfiscal_{f}"):
+                        if st.button("✕", key=f"del_{f}", use_container_width=True):
+                            if remover_fiscal(f):
+                                st.session_state.fiscais = [x for x in fiscais if x != f]
+                                st.success(f"{f} removido!")
+                                st.rerun()
 
             st.markdown('<div class="div"></div>', unsafe_allow_html=True)
             st.markdown('<div class="section-lbl">Adicionar fiscal</div>', unsafe_allow_html=True)
             novo_fiscal = st.text_input("Nome completo", key="novo_fiscal", placeholder="Ex: Maria Silva")
-            st.markdown('<div style="margin:8px 16px 8px"><div class="btn-green">', unsafe_allow_html=True)
-            if st.button("+ Adicionar fiscal", key="btn_add_fiscal", use_container_width=True):
-                if novo_fiscal.strip():
-                    if adicionar_fiscal(novo_fiscal.strip()):
-                        st.session_state.fiscais.append(novo_fiscal.strip())
-                        st.success(f"{novo_fiscal} adicionado!")
-                        st.rerun()
+            with st.container(key="kgreen_addfiscal"):
+                if st.button("+ Adicionar fiscal", key="btn_add_fiscal", use_container_width=True):
+                    if novo_fiscal.strip():
+                        if adicionar_fiscal(novo_fiscal.strip()):
+                            st.session_state.fiscais.append(novo_fiscal.strip())
+                            st.success(f"{novo_fiscal} adicionado!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao adicionar. Verifique a conexão com o Sheets.")
                     else:
-                        st.error("Erro ao adicionar. Verifique a conexão com o Sheets.")
-                else:
-                    st.warning("Digite o nome do fiscal.")
-            st.markdown("</div></div>", unsafe_allow_html=True)
+                        st.warning("Digite o nome do fiscal.")
 
             st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-            st.markdown('<div style="margin:0 16px 24px"><div class="btn-back">', unsafe_allow_html=True)
-            if st.button("🔒 Sair da área admin", key="btn_sair_admin", use_container_width=True):
-                st.session_state.admin_ok = False
-                st.rerun()
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            st.markdown('<div class="section-lbl">⚠️ Zona de risco</div>', unsafe_allow_html=True)
+            st.markdown('<div class="admin-locked" style="background:#FFF0F0;border-color:#E24B4A;"><div class="admin-title" style="color:#501313;">🗑 Apagar todo o histórico</div><div class="admin-sub" style="color:#501313;">Remove permanentemente todas as conferências salvas no Google Sheets (abas Conferências e Respostas). Essa ação não afeta os fiscais cadastrados.</div></div>', unsafe_allow_html=True)
+            if st.session_state.get("confirm_wipe_all"):
+                st.warning("Tem certeza? Essa ação não pode ser desfeita e vai apagar TODO o histórico salvo na planilha.")
+                wc1, wc2 = st.columns(2)
+                with wc1:
+                    with st.container(key="kdanger_wipeconfirm"):
+                        if st.button("✕ Sim, apagar tudo", key="btn_wipe_confirm", use_container_width=True):
+                            with st.spinner("Apagando todo o histórico..."):
+                                ok, msg = apagar_todo_historico()
+                            if ok:
+                                st.session_state.historico = []
+                                st.session_state.confirm_wipe_all = False
+                                st.success("Histórico apagado com sucesso.")
+                                st.rerun()
+                            else:
+                                st.error(f"Erro ao apagar: {msg}")
+                with wc2:
+                    with st.container(key="kclear_wipecancel"):
+                        if st.button("Cancelar", key="btn_wipe_cancel", use_container_width=True):
+                            st.session_state.confirm_wipe_all = False
+                            st.rerun()
+            else:
+                with st.container(key="kdanger_wipeall"):
+                    if st.button("🗑 Apagar todo o histórico", key="btn_wipe_all", use_container_width=True):
+                        st.session_state.confirm_wipe_all = True
+                        st.rerun()
+
+            st.markdown('<div class="div"></div>', unsafe_allow_html=True)
+            with st.container(key="kback_sairadmin"):
+                if st.button("🔒 Sair da área admin", key="btn_sair_admin", use_container_width=True):
+                    st.session_state.admin_ok = False
+                    st.rerun()
 
 # ═══════════════════════════════════════════════════════════════
 elif st.session_state.tela == "conferencia":
@@ -596,20 +678,17 @@ elif st.session_state.tela == "conferencia":
         st.markdown(f'<div class="{cls}"><div class="item-top"><div class="item-name">{item}</div>{bdg}</div></div>', unsafe_allow_html=True)
         c1,c2,c3=st.columns([2,2,1])
         with c1:
-            st.markdown('<div class="btn-c">', unsafe_allow_html=True)
-            if st.button("✔ Conforme",key=f"c_{item}",use_container_width=True):
-                st.session_state.respostas[item]="C"; st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(key=f"kconf-{idx}"):
+                if st.button("✔ Conforme",key=f"c_{idx}",use_container_width=True):
+                    st.session_state.respostas[item]="C"; st.rerun()
         with c2:
-            st.markdown('<div class="btn-nc">', unsafe_allow_html=True)
-            if st.button("✖ Não Conforme",key=f"nc_{item}",use_container_width=True):
-                st.session_state.respostas[item]="NC"; st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(key=f"knc-{idx}"):
+                if st.button("✖ Não Conforme",key=f"nc_{idx}",use_container_width=True):
+                    st.session_state.respostas[item]="NC"; st.rerun()
         with c3:
-            st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
-            if st.button("↺",key=f"r_{item}",use_container_width=True):
-                st.session_state.respostas[item]=None; st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(key=f"kclear-r{idx}"):
+                if st.button("↺",key=f"r_{idx}",use_container_width=True):
+                    st.session_state.respostas[item]=None; st.rerun()
 
         st.markdown('<div class="comment-wrap">', unsafe_allow_html=True)
         comentario_val = st.text_area(
@@ -634,20 +713,18 @@ elif st.session_state.tela == "conferencia":
         st.markdown(f'<a href="{wa_url}" target="_blank" class="wa-link">📲 Enviar {total_nc} NC(s) via WhatsApp</a>', unsafe_allow_html=True)
     c1,c2=st.columns([3,2])
     with c1:
-        st.markdown('<div style="margin:0 0 0 16px"><div class="btn-green">', unsafe_allow_html=True)
-        if st.button("✓ Finalizar",use_container_width=True):
-            with st.spinner("Salvando no Google Sheets..."):
-                ok,result=salvar_conferencia(conf,resp,st.session_state.comentarios)
-            if ok:
-                st.session_state.historico.append({**conf,"respostas":dict(resp),"comentarios":dict(st.session_state.comentarios),"total_c":total_c,"total_nc":total_nc,"pct":pct,"id":result})
-                st.session_state.tela="inicio"
-                st.rerun()
-            else:
-                st.error(f"Erro ao salvar: {result}")
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(key="kgreen_finalizar"):
+            if st.button("✓ Finalizar",use_container_width=True):
+                with st.spinner("Salvando no Google Sheets..."):
+                    ok,result=salvar_conferencia(conf,resp,st.session_state.comentarios)
+                if ok:
+                    st.session_state.historico.append({**conf,"respostas":dict(resp),"comentarios":dict(st.session_state.comentarios),"total_c":total_c,"total_nc":total_nc,"pct":pct,"id":result})
+                    st.session_state.tela="inicio"
+                    st.rerun()
+                else:
+                    st.error(f"Erro ao salvar: {result}")
     with c2:
-        st.markdown('<div style="margin:0 16px 0 0"><div class="btn-back">', unsafe_allow_html=True)
-        if st.button("← Voltar",use_container_width=True):
-            st.session_state.tela="inicio"; st.rerun()
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(key="kback_voltar"):
+            if st.button("← Voltar",use_container_width=True):
+                st.session_state.tela="inicio"; st.rerun()
     st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
