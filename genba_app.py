@@ -2,7 +2,19 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 import base64
+import os
 from datetime import date, datetime, timedelta
+
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo_vv_refeicoes.png")
+
+@st.cache_data
+def get_logo_data_uri():
+    try:
+        with open(LOGO_PATH, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:image/png;base64,{b64}"
+    except FileNotFoundError:
+        return None
 
 st.set_page_config(
     page_title="Genba Quality Analytics",
@@ -237,26 +249,77 @@ for k, v in [("tela","splash"),("respostas",{}),("comentarios",{}),("conf",{}),(
 
 # SPLASH
 if st.session_state.tela == "splash":
-    st.markdown("""
+    logo_uri = get_logo_data_uri()
+    logo_html = (
+        f'<img src="{logo_uri}" alt="VV Refeições" class="splash-logo-img" />'
+        if logo_uri else
+        '<div class="splash-brand-name">VV Refeições</div>'
+    )
+    st.markdown(f"""
 <style>
-[data-testid="stAppViewContainer"] { background: #0F2D1A !important; }
-.splash-wrap { text-align: center; padding: 60px 24px; }
-.splash-icon { font-size: 64px; margin-bottom: 20px; }
-.splash-title { font-size: 26px; font-weight: 700; color: #EAFBF0; margin-bottom: 6px; }
-.splash-title span { color: #7DC65A; }
-.splash-slogan { font-size: 14px; color: #5DAF78; margin-bottom: 40px; }
-.splash-brand { font-size: 11px; color: #3a7a4a; margin-top: 20px; }
-.stButton > button { background: #7DC65A !important; color: #0F2D1A !important; font-weight: 700 !important; border-radius: 12px !important; padding: 14px !important; font-size: 15px !important; }
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"],
+.main, .block-container {{
+    background: #0F2D1A !important;
+}}
+[data-testid="stAppViewContainer"] {{
+    background-image:
+        radial-gradient(circle at 12% 18%, rgba(125,198,90,0.10) 0%, rgba(125,198,90,0) 42%),
+        radial-gradient(circle at 88% 86%, rgba(125,198,90,0.08) 0%, rgba(125,198,90,0) 40%) !important;
+    position: relative;
+    overflow: hidden;
+}}
+[data-testid="stAppViewContainer"]::before {{
+    content: "";
+    position: absolute; top: 6%; left: -18%;
+    width: 260px; height: 260px; border-radius: 50%;
+    border: 1.5px solid rgba(125,198,90,0.22);
+    pointer-events: none;
+}}
+[data-testid="stAppViewContainer"]::after {{
+    content: "";
+    position: absolute; bottom: 4%; right: -20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    border: 1.5px solid rgba(125,198,90,0.16);
+    pointer-events: none;
+}}
+.splash-line-1, .splash-line-2 {{
+    position: absolute; height: 1px; background: rgba(125,198,90,0.28);
+    pointer-events: none;
+}}
+.splash-line-1 {{ top: 11%; right: 8%; width: 90px; transform: rotate(-32deg); }}
+.splash-line-2 {{ bottom: 18%; left: 6%; width: 70px; transform: rotate(-28deg); }}
+.splash-wrap {{ text-align: center; padding: 90px 28px 0; position: relative; z-index: 2; }}
+.splash-logo-img {{ height: 44px; margin-bottom: 6px; filter: brightness(0) invert(1); }}
+.splash-brand-name {{ font-size: 26px; font-weight: 800; color: #F4FBF5; letter-spacing: -0.4px; margin-bottom: 6px; }}
+.splash-brand-sub {{ font-size: 13px; color: #5DAF78; margin-bottom: 26px; }}
+.splash-divider {{ width: 46px; height: 2px; background: #7DC65A; border-radius: 99px; margin: 0 auto 26px; }}
+.splash-title {{ font-size: 21px; font-weight: 700; color: #EAFBF0; margin-bottom: 6px; }}
+.splash-title span {{ color: #7DC65A; }}
+.splash-sub {{ font-size: 13px; color: #5DAF78; margin-bottom: 34px; }}
+.splash-brand {{ font-size: 11px; color: #6FAE7E; margin-top: 22px; }}
+.splash-credit {{ font-size: 10px; color: #3a7a4a; margin-top: 4px; }}
+div[data-testid="stVerticalBlock"] .stButton {{ padding: 0 28px; position: relative; z-index: 2; }}
+.stButton > button {{ background: #7DC65A !important; color: #0F2D1A !important; font-weight: 700 !important; border-radius: 14px !important; padding: 15px !important; font-size: 15px !important; box-shadow: 0 6px 18px rgba(125,198,90,0.25) !important; }}
 </style>
+<div class="splash-line-1"></div>
+<div class="splash-line-2"></div>
 <div class="splash-wrap">
-    <div class="splash-icon">🌿</div>
+    {logo_html}
+    <div class="splash-brand-sub">A refeição caseira da sua empresa</div>
+    <div class="splash-divider"></div>
     <div class="splash-title">Genba <span>Quality</span> Analytics</div>
-    <div class="splash-slogan">Qualidade baseada em dados.</div>
+    <div class="splash-sub">Qualidade baseada em dados.</div>
 </div>""", unsafe_allow_html=True)
     if st.button("▶  Entrar", key="btn_entrar", use_container_width=True):
         st.session_state.tela = "inicio"
         st.rerun()
-    st.markdown('<div class="splash-brand" style="text-align:center">VV Refeições · v1.0</div>', unsafe_allow_html=True)
+    st.markdown("""
+<div style="text-align:center;position:relative;z-index:2;">
+    <div class="splash-brand">VV Refeições · v1.0</div>
+    <div class="splash-credit">Elaborado por Victoria Lucena · GestHD</div>
+</div>""", unsafe_allow_html=True)
     st.stop()
 
 if not st.session_state.historico_loaded:
