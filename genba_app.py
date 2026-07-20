@@ -416,17 +416,20 @@ if st.session_state.tela == "inicio":
                     + '</div>'
                     for n in nc_list
                 ])
-                st.markdown(f"""<div class="hist-card">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                        <div>
-                            <div style="font-size:14px;font-weight:600;color:#0F2D1A;">📍 {h['local']} · {h['turno']}</div>
-                            <div style="font-size:11px;color:#6B8F72;margin-top:2px;">{h['data']} · {h['fiscal']}</div>
-                            <div style="margin-top:8px;font-size:12px;color:#6B8F72;">✅ {h['total_c']} C &nbsp;|&nbsp; ❌ {h['total_nc']} NC</div>
-                            {ncs_html}
-                        </div>
-                        <div style="font-size:18px;font-weight:700;color:#1D6B35;">{h['pct']}%</div>
-                    </div>
-                </div>""", unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="hist-card">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+                    f'<div>'
+                    f'<div style="font-size:14px;font-weight:600;color:#0F2D1A;">📍 {h["local"]} · {h["turno"]}</div>'
+                    f'<div style="font-size:11px;color:#6B8F72;margin-top:2px;">{h["data"]} · {h["fiscal"]}</div>'
+                    f'<div style="margin-top:8px;font-size:12px;color:#6B8F72;">✅ {h["total_c"]} C &nbsp;|&nbsp; ❌ {h["total_nc"]} NC</div>'
+                    f'{ncs_html}'
+                    f'</div>'
+                    f'<div style="font-size:18px;font-weight:700;color:#1D6B35;">{h["pct"]}%</div>'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
                 h_id = h.get("id", f"{h['local']}_{h['turno']}_{h['data']}")
                 confirm_key = f"confirm_del_{h_id}"
                 if st.session_state.get(confirm_key):
